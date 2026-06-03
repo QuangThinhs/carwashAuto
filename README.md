@@ -2,12 +2,9 @@
 
 Dự án phát triển hệ thống quản lý tiệm rửa xe, hỗ trợ khách hàng đặt lịch và quản lý thông tin thành viên.
 
-## 👥 Nhóm phát triển (Legendary Losers)
+## 👥 Nhóm phát triển
 * Nguyễn Quang Thịnh 
-* Lộc
-* Trường
-* Tú
-* Sơn
+* Minh Tiến
 
 ## 💻 Công nghệ sử dụng
 * **Backend:** Java (Servlet, JSP)

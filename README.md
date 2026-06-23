@@ -160,32 +160,77 @@ Các bảng chính (MySQL):
 
 ## ⚙️ Cài đặt & chạy
 
-### Yêu cầu
-- JDK 17+, Maven 3.9+
-- Node.js 18+, npm
-- MySQL 8.x
+### 0. Yêu cầu môi trường
 
-### 1. Tạo database
+| Công cụ | Phiên bản | Ghi chú |
+| :--- | :--- | :--- |
+| **JDK** | 17 trở lên | Khuyến nghị LTS (17/21). Dự án vẫn chạy được trên JDK 26 (đã cấu hình sẵn cờ tương thích trong `pom.xml`). |
+| **Maven** | 3.9+ | Hoặc dùng IDE (IntelliJ/Eclipse/VS Code) để chạy. |
+| **Node.js** | 18+ | Đi kèm `npm`. |
+| **MySQL** | 8.x | Phải đang chạy (mặc định cổng `3306`). |
+
+### 1. Lấy mã nguồn
+
 ```bash
-mysql -u root -p -e "CREATE DATABASE autowash CHARACTER SET utf8mb4;"
-mysql -u root -p autowash < database/schema.sql
+git clone <URL-repo-cua-ban>
+cd carwashAuto
 ```
 
-### 2. Chạy Backend (cổng `8080`)
-Sửa thông tin DB trong `backend/src/main/resources/application.properties`, rồi:
+### 2. Cấu hình & chạy Backend (cổng `8080`)
+
+**Bước 2.1 — Khai báo mật khẩu MySQL.** Mở `backend/src/main/resources/application.properties`
+và sửa dòng mật khẩu cho khớp MySQL của bạn:
+
+```properties
+spring.datasource.username=root
+spring.datasource.password=your_password   # đổi thành mật khẩu MySQL thật (để trống nếu root không có mật khẩu)
+```
+
+> 💡 Không cần tự tạo database — chuỗi kết nối đã có `createDatabaseIfNotExist=true` nên MySQL sẽ
+> tự tạo database `autowash`, và Hibernate (`ddl-auto=update`) tự tạo các bảng từ entity.
+> *(Tuỳ chọn: muốn có sẵn đủ 11 bảng + dữ liệu mẫu thì chạy `mysql -u root -p autowash < database/schema.sql`.)*
+
+**Bước 2.2 — Chạy backend:**
+
 ```bash
 cd backend
 mvn spring-boot:run
 ```
-API: `http://localhost:8080`
+
+Thành công khi log hiện:
+```
+Tomcat started on port 8080 (http)
+Started AutoWashProApplication in X.XXX seconds
+```
+- REST API: `http://localhost:8080`
 
 ### 3. Chạy Frontend (cổng `3000`)
+
 ```bash
 cd frontend
+cp .env.local.example .env.local   # Windows PowerShell: copy .env.local.example .env.local
 npm install
 npm run dev
 ```
-Web: `http://localhost:3000`
+- Web app: `http://localhost:3000`
+- File `.env.local` trỏ tới backend qua biến `NEXT_PUBLIC_API_BASE_URL` (mặc định `http://localhost:8080`).
+
+### 4. Trải nghiệm thử (demo)
+
+1. Mở `http://localhost:3000`.
+2. Bấm **Đăng ký** → nhập họ tên, số điện thoại (10 số, bắt đầu bằng `0`), mật khẩu (≥ 6 ký tự).
+3. Hệ thống tự đăng nhập và chuyển vào **Dashboard** ("Xin chào, [tên] 👋").
+4. Bấm **Đăng xuất** rồi **Đăng nhập** lại bằng số điện thoại + mật khẩu vừa tạo.
+
+### 5. Xử lý lỗi thường gặp
+
+| Lỗi | Nguyên nhân & cách khắc phục |
+| :--- | :--- |
+| `Access denied for user 'root'@'localhost'` | Sai mật khẩu MySQL → sửa lại `spring.datasource.password` ở bước 2.1. |
+| `Communications link failure` / `Connection refused` | MySQL chưa chạy → bật service MySQL rồi chạy lại. |
+| `Port 8080 was already in use` | Cổng bị chiếm → tắt ứng dụng đang dùng cổng, hoặc đổi `server.port` trong `application.properties`. |
+| Frontend báo `Network Error` khi đăng nhập | Backend chưa chạy, hoặc sai `NEXT_PUBLIC_API_BASE_URL` trong `.env.local`. |
+| Lỗi **CORS** trên trình duyệt | Đảm bảo backend chạy ở `8080` và frontend ở `3000` (đã cấu hình CORS cho 2 cổng này). |
 
 ---
 

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(timeout 300 mvn -q -DskipTests compile)",
+      "Bash(timeout 300 npm install --no-audit --no-fund)",
+      "Bash(timeout 240 npm run build)"
+    ]
+  }
+}

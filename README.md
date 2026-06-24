@@ -187,14 +187,29 @@ cd carwashAuto
 
 ### 3. Cấu hình & chạy Backend (cổng `8080`)
 
-Mở `backend/src/main/resources/application.properties`, kiểm tra mật khẩu MySQL:
+> ✅ **Dùng XAMPP mặc định (root không mật khẩu)?** Không cần cấu hình gì — nhảy thẳng tới mục **Chạy backend** bên dưới.
+
+**Cấu hình (chỉ khi cần):** nếu MySQL của bạn **có mật khẩu**, hoặc muốn đổi **JWT secret**, hãy tạo file
+`backend/.env` (copy từ `backend/.env.example`) rồi điền:
 
 ```properties
-spring.datasource.username=root
-spring.datasource.password=        # XAMPP: để TRỐNG. Nếu MySQL có mật khẩu thì điền vào đây
+# backend/.env  — định dạng KEY=value (KHÔNG dùng "export", KHÔNG dấu nháy "")
+DB_PASSWORD=mat-khau-mysql-cua-ban
+JWT_SECRET=chuoi-ngau-nhien-dai-toi-thieu-256-bit
 ```
 
-Chạy backend:
+> 🔒 File `.env` đã được `.gitignore` bỏ qua → **không bị đẩy lên GitHub**. Backend tự đọc `.env` nhờ
+> `spring.config.import` khai báo sẵn trong `application.properties`. Không tạo `.env` thì dùng giá trị mặc định cho local.
+
+**Các biến cấu hình chính:**
+
+| Biến | Ý nghĩa | Mặc định (local) |
+| :--- | :--- | :--- |
+| `DB_PASSWORD` | Mật khẩu MySQL | *(trống — đúng cho XAMPP)* |
+| `JWT_SECRET` | Khóa ký token đăng nhập | một secret dev có sẵn |
+| `app.cors.allowed-origins` | Origin frontend được phép gọi API *(sửa trong `application.properties`)* | `http://localhost:3000` |
+
+**Chạy backend:**
 
 ```bash
 cd backend
@@ -207,6 +222,7 @@ Tomcat started on port 8080 (http)
 Started AutoWashProApplication in X.XXX seconds
 ```
 - REST API: `http://localhost:8080`
+- Thứ tự ưu tiên đọc cấu hình: **biến môi trường HĐH** → **`backend/.env`** → `application.properties` → giá trị mặc định.
 
 ### 4. Chạy Frontend (cổng `3000`)
 
@@ -238,12 +254,15 @@ Khi deploy lên máy chủ có IP/domain riêng, cần khai báo origin frontend
   ```properties
   NEXT_PUBLIC_API_BASE_URL=http://<IP-hoac-domain>:8080
   ```
-- **Bảo mật (khuyến nghị)** — đặt secret/mật khẩu thật qua **biến môi trường** (không commit lên GitHub):
-  ```bash
-  export JWT_SECRET="chuoi-ngau-nhien-dai-toi-thieu-256-bit"
-  export DB_PASSWORD="mat-khau-mysql-that"     # nếu MySQL có mật khẩu
-  ```
-  File `application.properties` đã đọc 2 biến này (`${JWT_SECRET:...}`, `${DB_PASSWORD:}`) — không đặt thì dùng mặc định cho local.
+- **Bảo mật (khuyến nghị)** — đặt secret/mật khẩu thật, **không commit lên GitHub**. Backend đọc cả file `.env` (giống frontend) lẫn biến môi trường:
+  - **Cách 1 — file `backend/.env`** (đã được gitignore): copy `backend/.env.example` → `backend/.env` rồi điền:
+    ```properties
+    DB_PASSWORD=mat-khau-mysql-that
+    JWT_SECRET=chuoi-ngau-nhien-dai-toi-thieu-256-bit
+    ```
+  - **Cách 2 — biến môi trường:** `export JWT_SECRET=...` và `export DB_PASSWORD=...`
+
+  `application.properties` đọc `${JWT_SECRET:...}` / `${DB_PASSWORD:}` từ một trong hai nguồn trên; không đặt gì thì dùng mặc định cho local.
 - Mở cổng `3000` và `8080` trên firewall của VPS.
 
 ### 7. Xử lý lỗi thường gặp

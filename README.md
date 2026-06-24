@@ -164,10 +164,10 @@ Các bảng chính (MySQL):
 
 | Công cụ | Phiên bản | Ghi chú |
 | :--- | :--- | :--- |
-| **JDK** | 17 trở lên | Khuyến nghị LTS (17/21). Dự án vẫn chạy được trên JDK 26 (đã cấu hình sẵn cờ tương thích trong `pom.xml`). |
-| **Maven** | 3.9+ | Hoặc dùng IDE (IntelliJ/Eclipse/VS Code) để chạy. |
+| **JDK** | 17 trở lên | Khuyến nghị LTS (17/21). Vẫn chạy được trên JDK 26 (đã có sẵn cờ tương thích trong `pom.xml`). |
+| **Maven** | 3.9+ | Hoặc chạy bằng IDE (IntelliJ / Eclipse / VS Code). |
 | **Node.js** | 18+ | Đi kèm `npm`. |
-| **MySQL** | 8.x | Phải đang chạy (mặc định cổng `3306`). |
+| **MySQL** | 8.x | Dễ nhất: cài **XAMPP** rồi bật MySQL (cổng `3306`). |
 
 ### 1. Lấy mã nguồn
 
@@ -176,21 +176,25 @@ git clone <URL-repo-cua-ban>
 cd carwashAuto
 ```
 
-### 2. Cấu hình & chạy Backend (cổng `8080`)
+### 2. Chuẩn bị Database (MySQL)
 
-**Bước 2.1 — Khai báo mật khẩu MySQL.** Mở `backend/src/main/resources/application.properties`
-và sửa dòng mật khẩu cho khớp MySQL của bạn:
+1. **Bật MySQL.** Nếu dùng **XAMPP**: mở *XAMPP Control Panel* → bấm **Start** ở dòng **MySQL** (đèn xanh, cổng `3306`).
+2. **Mật khẩu.** XAMPP mặc định user `root` **không có mật khẩu** → để trống là đúng.
+
+> 💡 **Không cần tự tạo database** — chuỗi kết nối có `createDatabaseIfNotExist=true` nên MySQL tự tạo
+> database `autowash`, và Hibernate (`ddl-auto=update`) tự tạo các bảng từ entity.
+> *(Tuỳ chọn: muốn có sẵn đủ 11 bảng + dữ liệu mẫu thì import `database/schema.sql`.)*
+
+### 3. Cấu hình & chạy Backend (cổng `8080`)
+
+Mở `backend/src/main/resources/application.properties`, kiểm tra mật khẩu MySQL:
 
 ```properties
 spring.datasource.username=root
-spring.datasource.password=your_password   # đổi thành mật khẩu MySQL thật (để trống nếu root không có mật khẩu)
+spring.datasource.password=        # XAMPP: để TRỐNG. Nếu MySQL có mật khẩu thì điền vào đây
 ```
 
-> 💡 Không cần tự tạo database — chuỗi kết nối đã có `createDatabaseIfNotExist=true` nên MySQL sẽ
-> tự tạo database `autowash`, và Hibernate (`ddl-auto=update`) tự tạo các bảng từ entity.
-> *(Tuỳ chọn: muốn có sẵn đủ 11 bảng + dữ liệu mẫu thì chạy `mysql -u root -p autowash < database/schema.sql`.)*
-
-**Bước 2.2 — Chạy backend:**
+Chạy backend:
 
 ```bash
 cd backend
@@ -204,7 +208,7 @@ Started AutoWashProApplication in X.XXX seconds
 ```
 - REST API: `http://localhost:8080`
 
-### 3. Chạy Frontend (cổng `3000`)
+### 4. Chạy Frontend (cổng `3000`)
 
 ```bash
 cd frontend
@@ -213,24 +217,44 @@ npm install
 npm run dev
 ```
 - Web app: `http://localhost:3000`
-- File `.env.local` trỏ tới backend qua biến `NEXT_PUBLIC_API_BASE_URL` (mặc định `http://localhost:8080`).
+- `.env.local` trỏ tới backend qua biến `NEXT_PUBLIC_API_BASE_URL` (mặc định `http://localhost:8080`).
 
-### 4. Trải nghiệm thử (demo)
+### 5. Trải nghiệm thử (demo)
 
 1. Mở `http://localhost:3000`.
 2. Bấm **Đăng ký** → nhập họ tên, số điện thoại (10 số, bắt đầu bằng `0`), mật khẩu (≥ 6 ký tự).
-3. Hệ thống tự đăng nhập và chuyển vào **Dashboard** ("Xin chào, [tên] 👋").
+3. Hệ thống tự đăng nhập và chuyển vào **Dashboard**.
 4. Bấm **Đăng xuất** rồi **Đăng nhập** lại bằng số điện thoại + mật khẩu vừa tạo.
 
-### 5. Xử lý lỗi thường gặp
+### 6. Triển khai lên VPS / server (tuỳ chọn)
+
+Khi deploy lên máy chủ có IP/domain riêng, cần khai báo origin frontend cho backend (CORS) và URL backend cho frontend:
+
+- **Backend** — thêm origin của frontend vào `app.cors.allowed-origins` (cách nhau bằng dấu phẩy) trong `application.properties`:
+  ```properties
+  app.cors.allowed-origins=http://localhost:3000,http://<IP-hoac-domain>:3000
+  ```
+- **Frontend** — đặt URL backend trong `.env.local` rồi build lại (`npm run build`):
+  ```properties
+  NEXT_PUBLIC_API_BASE_URL=http://<IP-hoac-domain>:8080
+  ```
+- **Bảo mật (khuyến nghị)** — đặt secret/mật khẩu thật qua **biến môi trường** (không commit lên GitHub):
+  ```bash
+  export JWT_SECRET="chuoi-ngau-nhien-dai-toi-thieu-256-bit"
+  export DB_PASSWORD="mat-khau-mysql-that"     # nếu MySQL có mật khẩu
+  ```
+  File `application.properties` đã đọc 2 biến này (`${JWT_SECRET:...}`, `${DB_PASSWORD:}`) — không đặt thì dùng mặc định cho local.
+- Mở cổng `3000` và `8080` trên firewall của VPS.
+
+### 7. Xử lý lỗi thường gặp
 
 | Lỗi | Nguyên nhân & cách khắc phục |
 | :--- | :--- |
-| `Access denied for user 'root'@'localhost'` | Sai mật khẩu MySQL → sửa lại `spring.datasource.password` ở bước 2.1. |
-| `Communications link failure` / `Connection refused` | MySQL chưa chạy → bật service MySQL rồi chạy lại. |
-| `Port 8080 was already in use` | Cổng bị chiếm → tắt ứng dụng đang dùng cổng, hoặc đổi `server.port` trong `application.properties`. |
-| Frontend báo `Network Error` khi đăng nhập | Backend chưa chạy, hoặc sai `NEXT_PUBLIC_API_BASE_URL` trong `.env.local`. |
-| Lỗi **CORS** trên trình duyệt | Đảm bảo backend chạy ở `8080` và frontend ở `3000` (đã cấu hình CORS cho 2 cổng này). |
+| `Unable to determine Dialect` / `Communications link failure` | **MySQL chưa bật** → bật MySQL (XAMPP: Start) rồi chạy lại. |
+| `Access denied for user 'root'@'localhost'` | Sai mật khẩu MySQL → sửa `spring.datasource.password` (XAMPP để trống). |
+| `Port 8080 was already in use` | Cổng bị chiếm → tắt app đang dùng cổng, hoặc đổi `server.port`. |
+| Frontend báo `Network Error` | Backend chưa chạy, hoặc sai `NEXT_PUBLIC_API_BASE_URL` trong `.env.local`. |
+| Lỗi **CORS** (`No 'Access-Control-Allow-Origin'`) | Origin frontend chưa được khai báo → thêm vào `app.cors.allowed-origins` (xem bước 6) rồi **khởi động lại backend**. |
 
 ---
 

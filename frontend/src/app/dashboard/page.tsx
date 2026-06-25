@@ -15,14 +15,15 @@ import {
 import { getUser, type AuthUser } from "@/lib/auth";
 import { getVehicles } from "@/services/vehicle";
 import { getBookings } from "@/services/booking";
+import { getLoyalty, type LoyaltySummary } from "@/services/loyalty";
 import CustomerTopbar from "@/components/CustomerTopbar";
 
 const features = [
   { Icon: CalendarClock, title: "Đặt lịch rửa xe", desc: "Chọn dịch vụ & khung giờ phù hợp với bạn.", href: "/dashboard/bookings" },
   { Icon: Bike, title: "Xe của tôi", desc: "Quản lý danh sách xe máy đã đăng ký.", href: "/dashboard/vehicles" },
   { Icon: History, title: "Lịch sử rửa xe", desc: "Xem lại các lần rửa đã thực hiện.", href: "/dashboard/history" },
-  { Icon: Gift, title: "Điểm thưởng", desc: "Theo dõi & đổi điểm lấy ưu đãi.", href: null },
-  { Icon: Ticket, title: "Ưu đãi", desc: "Khuyến mãi dành riêng cho hạng của bạn.", href: null },
+  { Icon: Gift, title: "Điểm thưởng", desc: "Theo dõi điểm tích lũy & hạng thành viên.", href: "/dashboard/loyalty" },
+  { Icon: Ticket, title: "Ưu đãi", desc: "Khuyến mãi dành riêng cho hạng của bạn.", href: "/dashboard/promotions" },
   { Icon: UserRound, title: "Hồ sơ", desc: "Xem & cập nhật thông tin cá nhân.", href: "/dashboard/profile" },
 ];
 
@@ -31,6 +32,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [vehicleCount, setVehicleCount] = useState(0);
   const [washCount, setWashCount] = useState(0);
+  const [loyalty, setLoyalty] = useState<LoyaltySummary | null>(null);
 
   useEffect(() => {
     const u = getUser();
@@ -45,6 +47,9 @@ export default function DashboardPage() {
     getBookings()
       .then((list) => setWashCount(list.filter((b) => b.status === "DONE").length))
       .catch(() => setWashCount(0));
+    getLoyalty()
+      .then(setLoyalty)
+      .catch(() => {});
   }, [router]);
 
   if (!user) return null;
@@ -84,13 +89,13 @@ export default function DashboardPage() {
               <Crown size={18} />
               <span className="text-sm uppercase tracking-wide">Hạng thành viên</span>
             </div>
-            <div className="mt-2 text-3xl font-bold">Member</div>
+            <div className="mt-2 text-3xl font-bold">{loyalty?.tierLabel ?? "Member"}</div>
             <div className="mt-6">
               <p className="text-white/80 text-sm">Điểm tích lũy</p>
-              <p className="text-4xl font-bold">0</p>
+              <p className="text-4xl font-bold">{loyalty?.pointsBalance ?? 0}</p>
             </div>
             <p className="mt-4 text-white/80 text-sm">
-              Cửa sổ đặt lịch trước: <b>7 ngày</b>
+              Cửa sổ đặt lịch trước: <b>{loyalty?.bookingWindowDays ?? 7} ngày</b>
             </p>
           </div>
         </section>

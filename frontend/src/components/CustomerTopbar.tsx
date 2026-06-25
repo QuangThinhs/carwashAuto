@@ -1,13 +1,22 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Crown, LogOut } from "lucide-react";
 import { clearAuth, type AuthUser } from "@/lib/auth";
+import { getLoyalty } from "@/services/loyalty";
 import Logo from "@/components/Logo";
 
 export default function CustomerTopbar({ user }: { user: AuthUser }) {
   const router = useRouter();
+  const [tier, setTier] = useState("Member");
+
+  useEffect(() => {
+    getLoyalty()
+      .then((s) => setTier(s.tierLabel))
+      .catch(() => {});
+  }, []);
 
   function handleLogout() {
     clearAuth();
@@ -25,7 +34,7 @@ export default function CustomerTopbar({ user }: { user: AuthUser }) {
             <span className="text-slate-500">Xin chào,</span>
             <span className="font-semibold text-slate-800">{user.fullName}</span>
             <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-600 text-xs font-semibold px-2.5 py-1">
-              <Crown size={13} /> Member
+              <Crown size={13} /> {tier}
             </span>
           </div>
           <button

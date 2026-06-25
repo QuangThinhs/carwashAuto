@@ -27,15 +27,18 @@ public class BookingService {
     private final VehicleRepository vehicleRepository;
     private final ServiceItemRepository serviceItemRepository;
     private final CustomerRepository customerRepository;
+    private final LoyaltyService loyaltyService;
 
     public BookingService(BookingRepository bookingRepository,
                           VehicleRepository vehicleRepository,
                           ServiceItemRepository serviceItemRepository,
-                          CustomerRepository customerRepository) {
+                          CustomerRepository customerRepository,
+                          LoyaltyService loyaltyService) {
         this.bookingRepository = bookingRepository;
         this.vehicleRepository = vehicleRepository;
         this.serviceItemRepository = serviceItemRepository;
         this.customerRepository = customerRepository;
+        this.loyaltyService = loyaltyService;
     }
 
     @Transactional
@@ -87,6 +90,8 @@ public class BookingService {
         }
         booking.setStatus(BookingStatus.DONE);
         bookingRepository.save(booking);
+        // Tich diem cho lan rua vua hoan tat
+        loyaltyService.earnForWash(booking.getCustomer(), booking.getPrice(), booking.getService().getName());
         return toResponse(booking);
     }
 

@@ -25,6 +25,28 @@ export interface BookingPayload {
   note?: string;
 }
 
+/** Trạng thái booking đang hoạt động (hiển thị ở trang đặt lịch). */
+export const ACTIVE_STATUSES = ["PENDING", "CONFIRMED", "IN_PROGRESS"];
+
+export const BOOKING_STATUS: Record<string, { label: string; cls: string }> = {
+  PENDING: { label: "Chờ xác nhận", cls: "bg-amber-50 text-amber-600" },
+  CONFIRMED: { label: "Đã xác nhận", cls: "bg-blue-50 text-blue-600" },
+  IN_PROGRESS: { label: "Đang rửa", cls: "bg-cyan-50 text-cyan-600" },
+  DONE: { label: "Hoàn tất", cls: "bg-green-50 text-green-600" },
+  CANCELLED: { label: "Đã huỷ", cls: "bg-slate-100 text-slate-500" },
+};
+
+export const fmtPrice = (n: number) => n.toLocaleString("vi-VN") + "đ";
+
+export const fmtTime = (iso: string) =>
+  new Date(iso).toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
 export async function getServices(): Promise<ServiceItem[]> {
   const res = await api.get<ServiceItem[]>("/api/services");
   return res.data;
@@ -37,6 +59,11 @@ export async function getBookings(): Promise<Booking[]> {
 
 export async function createBooking(data: BookingPayload): Promise<Booking> {
   const res = await api.post<Booking>("/api/bookings", data);
+  return res.data;
+}
+
+export async function completeBooking(id: number): Promise<Booking> {
+  const res = await api.put<Booking>(`/api/bookings/${id}/complete`, {});
   return res.data;
 }
 

@@ -30,6 +30,11 @@ public class BookingController {
         return ResponseEntity.ok(bookingService.create(principal.getName(), req));
     }
 
+    @PutMapping("/{id}/complete")
+    public ResponseEntity<BookingResponse> complete(Principal principal, @PathVariable Long id) {
+        return ResponseEntity.ok(bookingService.complete(principal.getName(), id));
+    }
+
     @PutMapping("/{id}/cancel")
     public ResponseEntity<BookingResponse> cancel(Principal principal, @PathVariable Long id) {
         return ResponseEntity.ok(bookingService.cancel(principal.getName(), id));

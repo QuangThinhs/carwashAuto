@@ -3,37 +3,23 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plus, X, CalendarClock, Clock } from "lucide-react";
+import { ArrowLeft, Plus, X, CalendarClock, Clock, History } from "lucide-react";
 import { getUser, type AuthUser } from "@/lib/auth";
 import { getVehicles, type Vehicle } from "@/services/vehicle";
 import {
   getServices,
   getBookings,
   createBooking,
+  completeBooking,
   cancelBooking,
+  BOOKING_STATUS,
+  ACTIVE_STATUSES,
+  fmtPrice,
+  fmtTime,
   type ServiceItem,
   type Booking,
 } from "@/services/booking";
 import CustomerTopbar from "@/components/CustomerTopbar";
-
-const STATUS: Record<string, { label: string; cls: string }> = {
-  PENDING: { label: "Chờ xác nhận", cls: "bg-amber-50 text-amber-600" },
-  CONFIRMED: { label: "Đã xác nhận", cls: "bg-blue-50 text-blue-600" },
-  IN_PROGRESS: { label: "Đang rửa", cls: "bg-cyan-50 text-cyan-600" },
-  DONE: { label: "Hoàn tất", cls: "bg-green-50 text-green-600" },
-  CANCELLED: { label: "Đã huỷ", cls: "bg-slate-100 text-slate-500" },
-};
-
-const fmtPrice = (n: number) => n.toLocaleString("vi-VN") + "đ";
-
-const fmtTime = (iso: string) =>
-  new Date(iso).toLocaleString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 
 function toLocalInput(d: Date) {
   const pad = (x: number) => String(x).padStart(2, "0");
@@ -108,6 +94,16 @@ export default function BookingsPage() {
     }
   }
 
+  async function handleComplete(b: Booking) {
+    if (!confirm(`Xác nhận đã rửa xong "${b.serviceName}"?`)) return;
+    try {
+      await completeBooking(b.id);
+      reloadBookings();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || "Thao tác thất bại.");
+    }
+  }
+
   async function handleCancel(b: Booking) {
     if (!confirm("Huỷ lịch đặt này?")) return;
     try {
@@ -120,6 +116,7 @@ export default function BookingsPage() {
 
   if (!user) return null;
 
+  const active = bookings.filter((b) => ACTIVE_STATUSES.includes(b.status));
   const now = new Date();
   const max = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
@@ -138,14 +135,22 @@ export default function BookingsPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Đặt lịch rửa xe</h1>
-            <p className="text-slate-500 mt-1">Đặt lịch và theo dõi các lần rửa của bạn.</p>
+            <p className="text-slate-500 mt-1">Các lịch đang chờ &amp; đang xử lý của bạn.</p>
           </div>
-          <button
-            onClick={openModal}
-            className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-sky-600 text-white font-semibold px-4 py-2.5 hover:opacity-95 transition"
-          >
-            <Plus size={18} /> Đặt lịch
-          </button>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/dashboard/history"
+              className="hidden sm:inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-cyan-600 transition"
+            >
+              <History size={16} /> Lịch sử
+            </Link>
+            <button
+              onClick={openModal}
+              className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-sky-600 text-white font-semibold px-4 py-2.5 hover:opacity-95 transition"
+            >
+              <Plus size={18} /> Đặt lịch
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -160,22 +165,21 @@ export default function BookingsPage() {
               → Thêm xe của tôi
             </Link>
           </div>
-        ) : bookings.length === 0 ? (
+        ) : active.length === 0 ? (
           <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center">
             <CalendarClock size={40} strokeWidth={1.5} className="mx-auto text-slate-300" />
-            <p className="mt-3 text-slate-500">Bạn chưa có lịch đặt nào.</p>
+            <p className="mt-3 text-slate-500">Bạn chưa có lịch nào đang chờ.</p>
             <button
               onClick={openModal}
               className="mt-4 inline-flex items-center gap-2 text-cyan-600 font-medium hover:underline"
             >
-              <Plus size={16} /> Đặt lịch đầu tiên
+              <Plus size={16} /> Đặt lịch mới
             </button>
           </div>
         ) : (
           <div className="space-y-3">
-            {bookings.map((b) => {
-              const st = STATUS[b.status] ?? { label: b.status, cls: "bg-slate-100 text-slate-500" };
-              const cancellable = b.status === "PENDING" || b.status === "CONFIRMED";
+            {active.map((b) => {
+              const st = BOOKING_STATUS[b.status] ?? { label: b.status, cls: "bg-slate-100 text-slate-500" };
               return (
                 <div
                   key={b.id}
@@ -195,14 +199,20 @@ export default function BookingsPage() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-bold text-cyan-600">{fmtPrice(b.price)}</p>
-                    {cancellable && (
+                    <div className="flex items-center gap-3 justify-end mt-1">
+                      <button
+                        onClick={() => handleComplete(b)}
+                        className="text-sm text-slate-500 hover:text-green-600 transition"
+                      >
+                        Đã rửa xong
+                      </button>
                       <button
                         onClick={() => handleCancel(b)}
-                        className="text-sm text-slate-400 hover:text-red-500 transition mt-1"
+                        className="text-sm text-slate-400 hover:text-red-500 transition"
                       >
-                        Huỷ lịch
+                        Huỷ
                       </button>
-                    )}
+                    </div>
                   </div>
                 </div>
               );

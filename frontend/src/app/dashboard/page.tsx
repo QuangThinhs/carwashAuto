@@ -14,12 +14,13 @@ import {
 } from "lucide-react";
 import { getUser, type AuthUser } from "@/lib/auth";
 import { getVehicles } from "@/services/vehicle";
+import { getBookings } from "@/services/booking";
 import CustomerTopbar from "@/components/CustomerTopbar";
 
 const features = [
   { Icon: CalendarClock, title: "Đặt lịch rửa xe", desc: "Chọn dịch vụ & khung giờ phù hợp với bạn.", href: "/dashboard/bookings" },
   { Icon: Bike, title: "Xe của tôi", desc: "Quản lý danh sách xe máy đã đăng ký.", href: "/dashboard/vehicles" },
-  { Icon: History, title: "Lịch sử rửa xe", desc: "Xem lại các lần rửa đã thực hiện.", href: null },
+  { Icon: History, title: "Lịch sử rửa xe", desc: "Xem lại các lần rửa đã thực hiện.", href: "/dashboard/history" },
   { Icon: Gift, title: "Điểm thưởng", desc: "Theo dõi & đổi điểm lấy ưu đãi.", href: null },
   { Icon: Ticket, title: "Ưu đãi", desc: "Khuyến mãi dành riêng cho hạng của bạn.", href: null },
   { Icon: UserRound, title: "Hồ sơ", desc: "Xem & cập nhật thông tin cá nhân.", href: "/dashboard/profile" },
@@ -29,6 +30,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [vehicleCount, setVehicleCount] = useState(0);
+  const [washCount, setWashCount] = useState(0);
 
   useEffect(() => {
     const u = getUser();
@@ -40,6 +42,9 @@ export default function DashboardPage() {
     getVehicles()
       .then((list) => setVehicleCount(list.length))
       .catch(() => setVehicleCount(0));
+    getBookings()
+      .then((list) => setWashCount(list.filter((b) => b.status === "DONE").length))
+      .catch(() => setWashCount(0));
   }, [router]);
 
   if (!user) return null;
@@ -68,7 +73,7 @@ export default function DashboardPage() {
               </div>
               <div className="rounded-xl bg-slate-50 p-4">
                 <p className="text-sm text-slate-500">Lượt rửa</p>
-                <p className="font-semibold text-slate-800">0</p>
+                <p className="font-semibold text-slate-800">{washCount}</p>
               </div>
             </div>
           </div>

@@ -78,6 +78,19 @@ public class BookingService {
     }
 
     @Transactional
+    public BookingResponse complete(String username, Long id) {
+        Customer customer = currentCustomer(username);
+        Booking booking = bookingRepository.findByIdAndCustomerId(id, customer.getId())
+                .orElseThrow(() -> new IllegalArgumentException("Khong tim thay lich dat"));
+        if (booking.getStatus() == BookingStatus.DONE || booking.getStatus() == BookingStatus.CANCELLED) {
+            throw new IllegalArgumentException("Lich nay da ket thuc");
+        }
+        booking.setStatus(BookingStatus.DONE);
+        bookingRepository.save(booking);
+        return toResponse(booking);
+    }
+
+    @Transactional
     public BookingResponse cancel(String username, Long id) {
         Customer customer = currentCustomer(username);
         Booking booking = bookingRepository.findByIdAndCustomerId(id, customer.getId())

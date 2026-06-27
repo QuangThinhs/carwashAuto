@@ -10,7 +10,7 @@ import Logo from "@/components/Logo";
 const navItems = [
   { key: "overview", label: "Tổng quan", Icon: LayoutDashboard, href: "/admin", ready: true },
   { key: "bookings", label: "Lịch đặt", Icon: CalendarClock, href: "/admin/bookings", ready: false },
-  { key: "services", label: "Dịch vụ", Icon: Droplets, href: "/admin/services", ready: false },
+  { key: "services", label: "Dịch vụ", Icon: Droplets, href: "/admin/services", ready: true },
   { key: "promotions", label: "Khuyến mãi", Icon: Ticket, href: "/admin/promotions", ready: false },
   { key: "customers", label: "Khách hàng", Icon: Users, href: "/admin/customers", ready: false },
 ];

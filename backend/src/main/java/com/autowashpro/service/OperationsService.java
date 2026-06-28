@@ -128,9 +128,9 @@ public class OperationsService {
                 .orElseThrow(() -> new IllegalArgumentException("Dịch vụ không hợp lệ"));
 
         Booking booking = new Booking();
-        booking.setWalkinName(customerName);
-        booking.setWalkinPhone(customerPhone);
-        booking.setWalkinPlate(vehiclePlate);
+        booking.setWalkinName(customerName != null ? customerName.trim() : null);
+        booking.setWalkinPhone(customerPhone != null && !customerPhone.isBlank() ? customerPhone.trim() : null);
+        booking.setWalkinPlate(vehiclePlate != null ? vehiclePlate.trim() : null);
         booking.setService(service);
         booking.setScheduledTime(LocalDateTime.now());
         booking.setStatus(BookingStatus.IN_PROGRESS);

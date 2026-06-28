@@ -103,7 +103,8 @@ export default function AdminBaysPage() {
       await assignBay(free.id, booking.id);
       reload();
     } catch (e: any) {
-      alert(e?.response?.data?.message || "Xếp xe thất bại.");
+      alert(e?.response?.data?.message || "Bãi vừa bị chiếm, vui lòng thử lại.");
+      reload();
     }
   }
 
@@ -134,6 +135,11 @@ export default function AdminBaysPage() {
     if (!name || name === bay.name) return;
     try {
       await renameBay(bay.id, name);
+      setEdits((prev) => {
+        const next = { ...prev };
+        delete next[bay.id];
+        return next;
+      });
       reload();
     } catch (e: any) {
       alert(e?.response?.data?.message || "Đổi tên thất bại.");
@@ -208,7 +214,7 @@ export default function AdminBaysPage() {
                   <div className="mt-3">
                     <p className="text-sm font-medium text-white truncate">{bay.customerName}</p>
                     <p className="text-xs text-slate-400 truncate">
-                      {bay.serviceName} · {bay.vehiclePlate}
+                      {bay.serviceName} · {bay.vehiclePlate || "—"}
                     </p>
                     <p className="text-sm font-semibold text-cyan-400 mt-1">{fmtPrice(bay.price)}</p>
                     <button
@@ -319,6 +325,8 @@ export default function AdminBaysPage() {
                   <label className="block mb-4">
                     <span className="block text-sm font-medium text-slate-300 mb-1.5">SĐT (tuỳ chọn)</span>
                     <input
+                      type="tel"
+                      inputMode="tel"
                       value={order.customerPhone}
                       onChange={(e) => setOrder({ ...order, customerPhone: e.target.value })}
                       placeholder="09xxxxxxxx"

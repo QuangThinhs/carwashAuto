@@ -84,7 +84,7 @@ export default function AdminBookingsPage() {
         {loading ? (
           <p className="p-5 text-slate-500">Đang tải...</p>
         ) : shown.length === 0 ? (
-          <p className="p-5 text-slate-500">Không có đơn nào đang chờ.</p>
+          <p className="p-5 text-slate-500">Không có đơn hàng nào đang hoạt động.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

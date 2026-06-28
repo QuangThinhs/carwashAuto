@@ -15,6 +15,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 -- Xoá bảng cũ (kể cả các bảng thừa từ thiết kế cũ) để dựng lại sạch
 DROP TABLE IF EXISTS wash_bays;
+DROP TABLE IF EXISTS promotion_customers;
 DROP TABLE IF EXISTS point_transactions;
 DROP TABLE IF EXISTS loyalty_accounts;
 DROP TABLE IF EXISTS bookings;
@@ -129,7 +130,10 @@ CREATE TABLE promotions (
     name             VARCHAR(120) NOT NULL,
     description      VARCHAR(255) DEFAULT NULL,
     discount_percent INT          NOT NULL,
-    min_tier         ENUM('GOLD','MEMBER','PLATINUM','SILVER') DEFAULT NULL, -- NULL = mọi hạng
+    target_type      ENUM('ALL','TIER','USER') NOT NULL DEFAULT 'ALL', -- đối tượng áp dụng
+    min_tier         ENUM('GOLD','MEMBER','PLATINUM','SILVER') DEFAULT NULL, -- khi target_type = TIER
+    usage_limit      INT          DEFAULT NULL,   -- NULL = không giới hạn lượt dùng
+    usage_count      INT          NOT NULL DEFAULT 0,
     start_date       DATE         NOT NULL,
     end_date         DATE         NOT NULL,
     active           BIT(1)       NOT NULL DEFAULT b'1',
@@ -153,10 +157,13 @@ CREATE TABLE bookings (
     walkin_name    VARCHAR(120) DEFAULT NULL,   -- thông tin khách vãng lai (order tại quầy)
     walkin_phone   VARCHAR(20)  DEFAULT NULL,
     walkin_plate   VARCHAR(20)  DEFAULT NULL,
+    promotion_id   BIGINT       DEFAULT NULL,   -- khuyến mãi đã áp dụng (NULL nếu không)
+    original_price BIGINT       DEFAULT NULL,   -- giá gốc trước khi giảm
     PRIMARY KEY (id),
-    CONSTRAINT fk_booking_customer FOREIGN KEY (customer_id) REFERENCES customers (id),
-    CONSTRAINT fk_booking_vehicle  FOREIGN KEY (vehicle_id)  REFERENCES vehicles (id),
-    CONSTRAINT fk_booking_service  FOREIGN KEY (service_id)  REFERENCES services (id)
+    CONSTRAINT fk_booking_customer  FOREIGN KEY (customer_id)  REFERENCES customers (id),
+    CONSTRAINT fk_booking_vehicle   FOREIGN KEY (vehicle_id)   REFERENCES vehicles (id),
+    CONSTRAINT fk_booking_service   FOREIGN KEY (service_id)   REFERENCES services (id),
+    CONSTRAINT fk_booking_promotion FOREIGN KEY (promotion_id) REFERENCES promotions (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ---------------------------------------------------------------------
@@ -169,6 +176,17 @@ CREATE TABLE wash_bays (
     current_booking_id BIGINT      DEFAULT NULL,   -- lịch đang rửa tại bãi (NULL = trống)
     PRIMARY KEY (id),
     CONSTRAINT fk_bay_booking FOREIGN KEY (current_booking_id) REFERENCES bookings (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ---------------------------------------------------------------------
+-- 10. promotion_customers — khách hàng cụ thể được áp dụng KM (target_type = USER)
+-- ---------------------------------------------------------------------
+CREATE TABLE promotion_customers (
+    promotion_id BIGINT NOT NULL,
+    customer_id  BIGINT NOT NULL,
+    PRIMARY KEY (promotion_id, customer_id),
+    CONSTRAINT fk_promocust_promo    FOREIGN KEY (promotion_id) REFERENCES promotions (id),
+    CONSTRAINT fk_promocust_customer FOREIGN KEY (customer_id)  REFERENCES customers (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 
@@ -193,9 +211,9 @@ INSERT INTO services (name, category, price, duration_min, active) VALUES
 ('Đánh bóng xe',    'ADD_ON',       60000, 30, b'1');
 
 -- Khuyến mãi
-INSERT INTO promotions (code, name, description, discount_percent, min_tier, start_date, end_date, active) VALUES
-('WELCOME10',  'Chào mừng thành viên mới', 'Giảm 10% cho lần rửa đầu tiên của bạn.',          10, NULL,       CURDATE() - INTERVAL 1 DAY, CURDATE() + INTERVAL 6 MONTH, b'1'),
-('WEEKEND12',  'Cuối tuần rạng rỡ',        'Giảm 12% cho mọi dịch vụ vào cuối tuần.',          12, NULL,       CURDATE() - INTERVAL 1 DAY, CURDATE() + INTERVAL 6 MONTH, b'1'),
-('SILVER15',   'Ưu đãi hạng Silver+',      'Giảm 15% dành riêng cho hạng Silver trở lên.',     15, 'SILVER',   CURDATE() - INTERVAL 1 DAY, CURDATE() + INTERVAL 6 MONTH, b'1'),
-('GOLD20',     'Đặc quyền hạng Gold+',     'Giảm 20% dành riêng cho hạng Gold trở lên.',       20, 'GOLD',     CURDATE() - INTERVAL 1 DAY, CURDATE() + INTERVAL 6 MONTH, b'1'),
-('PLATINUM25', 'Tri ân hạng Platinum',     'Giảm 25% cùng nhiều quà tặng cho hạng Platinum.',  25, 'PLATINUM', CURDATE() - INTERVAL 1 DAY, CURDATE() + INTERVAL 6 MONTH, b'1');
+INSERT INTO promotions (code, name, description, discount_percent, target_type, min_tier, start_date, end_date, active) VALUES
+('WELCOME10',  'Chào mừng thành viên mới', 'Giảm 10% cho lần rửa đầu tiên của bạn.',          10, 'ALL',  NULL,       CURDATE() - INTERVAL 1 DAY, CURDATE() + INTERVAL 6 MONTH, b'1'),
+('WEEKEND12',  'Cuối tuần rạng rỡ',        'Giảm 12% cho mọi dịch vụ vào cuối tuần.',          12, 'ALL',  NULL,       CURDATE() - INTERVAL 1 DAY, CURDATE() + INTERVAL 6 MONTH, b'1'),
+('SILVER15',   'Ưu đãi hạng Silver+',      'Giảm 15% dành riêng cho hạng Silver trở lên.',     15, 'TIER', 'SILVER',   CURDATE() - INTERVAL 1 DAY, CURDATE() + INTERVAL 6 MONTH, b'1'),
+('GOLD20',     'Đặc quyền hạng Gold+',     'Giảm 20% dành riêng cho hạng Gold trở lên.',       20, 'TIER', 'GOLD',     CURDATE() - INTERVAL 1 DAY, CURDATE() + INTERVAL 6 MONTH, b'1'),
+('PLATINUM25', 'Tri ân hạng Platinum',     'Giảm 25% cùng nhiều quà tặng cho hạng Platinum.',  25, 'TIER', 'PLATINUM', CURDATE() - INTERVAL 1 DAY, CURDATE() + INTERVAL 6 MONTH, b'1');

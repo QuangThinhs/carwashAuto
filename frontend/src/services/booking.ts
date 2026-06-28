@@ -16,6 +16,8 @@ export interface Booking {
   status: string;
   price: number;
   note: string | null;
+  originalPrice: number | null;
+  promoCode: string | null;
 }
 
 export interface BookingPayload {
@@ -23,6 +25,7 @@ export interface BookingPayload {
   serviceId: number;
   scheduledTime: string; // "YYYY-MM-DDTHH:mm"
   note?: string;
+  promoCode?: string;
 }
 
 /** Trạng thái booking đang hoạt động (hiển thị ở trang đặt lịch). */

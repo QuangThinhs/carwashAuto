@@ -31,16 +31,19 @@ public class OperationsService {
     private final VehicleRepository vehicleRepo;
     private final ServiceItemRepository serviceRepo;
     private final LoyaltyService loyaltyService;
+    private final PromotionService promotionService;
 
     public OperationsService(WashBayRepository bayRepo, BookingRepository bookingRepo,
                              CustomerRepository customerRepo, VehicleRepository vehicleRepo,
-                             ServiceItemRepository serviceRepo, LoyaltyService loyaltyService) {
+                             ServiceItemRepository serviceRepo, LoyaltyService loyaltyService,
+                             PromotionService promotionService) {
         this.bayRepo = bayRepo;
         this.bookingRepo = bookingRepo;
         this.customerRepo = customerRepo;
         this.vehicleRepo = vehicleRepo;
         this.serviceRepo = serviceRepo;
         this.loyaltyService = loyaltyService;
+        this.promotionService = promotionService;
     }
 
     @Transactional(readOnly = true)
@@ -70,7 +73,7 @@ public class OperationsService {
             List<VehicleResponse> vs = vehicleRepo.findByCustomerIdOrderByIdDesc(c.getId()).stream()
                     .map(v -> new VehicleResponse(v.getId(), v.getLicensePlate(), v.getCategory(), v.getType(), v.getBrand()))
                     .toList();
-            return new AdminCustomerResponse(c.getId(), c.getFullName(), c.getPhone(), vs);
+            return new AdminCustomerResponse(c.getId(), c.getFullName(), c.getPhone(), c.getEmail(), vs);
         }).toList();
     }
 
@@ -119,13 +122,15 @@ public class OperationsService {
 
     /** Order nhanh tai bai cho khach vang lai: nhap ten/SDT/bien so + chon dich vu -> rua ngay. */
     @Transactional
-    public void createOrderAtBay(Long bayId, String customerName, String customerPhone, String vehiclePlate, Long serviceId) {
+    public void createOrderAtBay(Long bayId, String customerName, String customerPhone, String vehiclePlate,
+                                 Long serviceId, String promoCode) {
         WashBay bay = bay(bayId);
         if (bay.getStatus() != BayStatus.FREE) {
             throw new IllegalArgumentException("Bãi này đang có xe");
         }
         ServiceItem service = serviceRepo.findById(serviceId)
                 .orElseThrow(() -> new IllegalArgumentException("Dịch vụ không hợp lệ"));
+        long base = service.getPrice();
 
         Booking booking = new Booking();
         booking.setWalkinName(customerName != null ? customerName.trim() : null);
@@ -134,7 +139,16 @@ public class OperationsService {
         booking.setService(service);
         booking.setScheduledTime(LocalDateTime.now());
         booking.setStatus(BookingStatus.IN_PROGRESS);
-        booking.setPrice(service.getPrice());
+
+        if (promoCode != null && !promoCode.isBlank()) {
+            PromotionService.AppliedPromo applied = promotionService.applyForWalkIn(promoCode, base);
+            booking.setOriginalPrice(base);
+            booking.setPrice(applied.finalPrice());
+            booking.setPromotion(applied.promotion());
+        } else {
+            booking.setPrice(base);
+        }
+
         bookingRepo.save(booking);
         occupy(bay, booking);
     }

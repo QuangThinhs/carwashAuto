@@ -11,6 +11,8 @@ import {
   type AdminService,
 } from "@/services/adminServices";
 import { fmtPrice } from "@/services/booking";
+import { useToast } from "@/components/Toast";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 const CATEGORY_LABEL: Record<string, string> = {
   WASH_PACKAGE: "Gói rửa",
@@ -23,6 +25,8 @@ const inputCls =
 const EMPTY = { name: "", category: "WASH_PACKAGE", price: "", durationMin: "", active: true };
 
 export default function AdminServicesPage() {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [services, setServices] = useState<AdminService[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<{ id: number | null; data: typeof EMPTY } | null>(null);
@@ -85,12 +89,12 @@ export default function AdminServicesPage() {
   }
 
   async function handleDelete(s: AdminService) {
-    if (!confirm(`Xoá dịch vụ "${s.name}"?`)) return;
+    if (!(await confirm({ message: `Xoá dịch vụ "${s.name}"?`, danger: true, confirmText: "Xoá" }))) return;
     try {
       await deleteService(s.id);
       reload();
     } catch (err: any) {
-      alert(err?.response?.data?.message || "Xoá thất bại.");
+      toast(err?.response?.data?.message || "Xoá thất bại.");
     }
   }
 

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { LayoutDashboard, LayoutGrid, CalendarClock, History, Droplets, Ticket, Users, LogOut } from "lucide-react";
 import { getUser, clearAuth, type AuthUser } from "@/lib/auth";
 import Logo from "@/components/Logo";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 const navItems = [
   { key: "overview", label: "Tổng quan", Icon: LayoutDashboard, href: "/admin", ready: true },
@@ -27,6 +28,7 @@ export default function AdminShell({
   children: ReactNode;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [user, setUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
@@ -38,8 +40,8 @@ export default function AdminShell({
     setUser(u);
   }, [router]);
 
-  function handleLogout() {
-    if (!confirm("Đăng xuất khỏi trang quản trị?")) return;
+  async function handleLogout() {
+    if (!(await confirm({ message: "Đăng xuất khỏi trang quản trị?", confirmText: "Đăng xuất" }))) return;
     clearAuth();
     router.push("/admin/login");
   }

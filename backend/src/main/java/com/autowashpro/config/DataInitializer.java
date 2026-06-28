@@ -2,6 +2,7 @@ package com.autowashpro.config;
 
 import com.autowashpro.entity.BayStatus;
 import com.autowashpro.entity.Promotion;
+import com.autowashpro.entity.PromotionTarget;
 import com.autowashpro.entity.Role;
 import com.autowashpro.entity.ServiceItem;
 import com.autowashpro.entity.Tier;
@@ -105,6 +106,7 @@ public class DataInitializer implements CommandLineRunner {
         p.setDescription(description);
         p.setDiscountPercent(discountPercent);
         p.setMinTier(minTier);
+        p.setTargetType(minTier != null ? PromotionTarget.TIER : PromotionTarget.ALL);
         p.setStartDate(start);
         p.setEndDate(end);
         p.setActive(true);

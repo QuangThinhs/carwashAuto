@@ -11,12 +11,15 @@ public class BookingResponse {
     private String status;
     private long price;
     private String note;
+    private Long originalPrice;
+    private String promoCode;
 
     public BookingResponse() {
     }
 
     public BookingResponse(Long id, String vehiclePlate, String serviceName,
-                           LocalDateTime scheduledTime, String status, long price, String note) {
+                           LocalDateTime scheduledTime, String status, long price, String note,
+                           Long originalPrice, String promoCode) {
         this.id = id;
         this.vehiclePlate = vehiclePlate;
         this.serviceName = serviceName;
@@ -24,6 +27,8 @@ public class BookingResponse {
         this.status = status;
         this.price = price;
         this.note = note;
+        this.originalPrice = originalPrice;
+        this.promoCode = promoCode;
     }
 
     public Long getId() {
@@ -52,5 +57,13 @@ public class BookingResponse {
 
     public String getNote() {
         return note;
+    }
+
+    public Long getOriginalPrice() {
+        return originalPrice;
+    }
+
+    public String getPromoCode() {
+        return promoCode;
     }
 }

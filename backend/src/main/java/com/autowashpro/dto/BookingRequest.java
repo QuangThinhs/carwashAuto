@@ -17,6 +17,9 @@ public class BookingRequest {
 
     private String note;
 
+    /** Ma khuyen mai (tuy chon). */
+    private String promoCode;
+
     public Long getVehicleId() {
         return vehicleId;
     }
@@ -47,5 +50,13 @@ public class BookingRequest {
 
     public void setNote(String note) {
         this.note = note;
+    }
+
+    public String getPromoCode() {
+        return promoCode;
+    }
+
+    public void setPromoCode(String promoCode) {
+        this.promoCode = promoCode;
     }
 }

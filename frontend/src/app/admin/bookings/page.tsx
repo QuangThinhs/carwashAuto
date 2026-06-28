@@ -10,6 +10,8 @@ import {
   type AdminBooking,
 } from "@/services/adminOps";
 import { BOOKING_STATUS, fmtPrice, fmtTime } from "@/services/booking";
+import { useToast } from "@/components/Toast";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 const filters = [
   { key: "ALL", label: "Tất cả" },
@@ -24,6 +26,8 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function AdminBookingsPage() {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("ALL");
@@ -46,17 +50,17 @@ export default function AdminBookingsPage() {
       await confirmBooking(b.id);
       reload();
     } catch (err: any) {
-      alert(err?.response?.data?.message || "Thao tác thất bại.");
+      toast(err?.response?.data?.message || "Thao tác thất bại.");
     }
   }
 
   async function doCancel(b: AdminBooking) {
-    if (!confirm("Huỷ lịch đặt này?")) return;
+    if (!(await confirm({ message: "Huỷ lịch đặt này?", danger: true, confirmText: "Huỷ lịch" }))) return;
     try {
       await cancelBookingAdmin(b.id);
       reload();
     } catch (err: any) {
-      alert(err?.response?.data?.message || "Huỷ thất bại.");
+      toast(err?.response?.data?.message || "Huỷ thất bại.");
     }
   }
 

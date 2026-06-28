@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDate;
+import java.util.List;
 
 public class PromotionRequest {
 
@@ -21,8 +22,17 @@ public class PromotionRequest {
     @Max(value = 100, message = "Phần trăm giảm phải từ 1 đến 100")
     private int discountPercent;
 
-    /** "" hoac null = moi hang; hoac MEMBER/SILVER/GOLD/PLATINUM. */
+    /** ALL | TIER | USER (mac dinh ALL). */
+    private String targetType;
+
+    /** Khi targetType = TIER: MEMBER/SILVER/GOLD/PLATINUM. */
     private String minTier;
+
+    /** Khi targetType = USER: danh sach id khach hang. */
+    private List<Long> targetCustomerIds;
+
+    /** Gioi han tong so luot; null hoac 0 = khong gioi han. */
+    private Integer usageLimit;
 
     @NotNull(message = "Vui lòng chọn ngày bắt đầu")
     private LocalDate startDate;
@@ -64,12 +74,36 @@ public class PromotionRequest {
         this.discountPercent = discountPercent;
     }
 
+    public String getTargetType() {
+        return targetType;
+    }
+
+    public void setTargetType(String targetType) {
+        this.targetType = targetType;
+    }
+
     public String getMinTier() {
         return minTier;
     }
 
     public void setMinTier(String minTier) {
         this.minTier = minTier;
+    }
+
+    public List<Long> getTargetCustomerIds() {
+        return targetCustomerIds;
+    }
+
+    public void setTargetCustomerIds(List<Long> targetCustomerIds) {
+        this.targetCustomerIds = targetCustomerIds;
+    }
+
+    public Integer getUsageLimit() {
+        return usageLimit;
+    }
+
+    public void setUsageLimit(Integer usageLimit) {
+        this.usageLimit = usageLimit;
     }
 
     public LocalDate getStartDate() {

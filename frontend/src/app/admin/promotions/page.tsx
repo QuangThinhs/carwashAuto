@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, X } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Search } from "lucide-react";
 import AdminShell from "@/components/AdminShell";
 import {
   getAdminPromotions,
@@ -9,13 +9,22 @@ import {
   updatePromotion,
   deletePromotion,
   type AdminPromotion,
+  type PromoTargetCustomer,
 } from "@/services/adminPromotions";
+import { getAdminCustomers, type AdminCustomer } from "@/services/adminOps";
+import { useToast } from "@/components/Toast";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 const inputCls =
   "w-full rounded-lg border border-white/10 bg-slate-800 px-4 py-2.5 text-white outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30";
 
+const TARGET_OPTIONS = [
+  { value: "ALL", label: "Tất cả khách hàng" },
+  { value: "TIER", label: "Theo hạng thành viên" },
+  { value: "USER", label: "Khách hàng cụ thể" },
+];
+
 const TIER_OPTIONS = [
-  { value: "", label: "Mọi hạng" },
   { value: "MEMBER", label: "Member trở lên" },
   { value: "SILVER", label: "Silver trở lên" },
   { value: "GOLD", label: "Gold trở lên" },
@@ -34,21 +43,36 @@ const EMPTY = {
   name: "",
   description: "",
   discountPercent: "",
-  minTier: "",
+  targetType: "ALL",
+  minTier: "SILVER",
+  usageLimit: "",
   startDate: "",
   endDate: "",
   active: true,
 };
 
+type ModalState = { id: number | null; data: typeof EMPTY; targets: PromoTargetCustomer[] };
+
+function targetText(p: AdminPromotion) {
+  if (p.targetType === "TIER") return p.minTier ? TIER_LABEL[p.minTier] ?? p.minTier : "Theo hạng";
+  if (p.targetType === "USER") return `${p.targetCustomers.length} khách`;
+  return "Mọi khách";
+}
+
 export default function AdminPromotionsPage() {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [promos, setPromos] = useState<AdminPromotion[]>([]);
+  const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState<{ id: number | null; data: typeof EMPTY } | null>(null);
+  const [modal, setModal] = useState<ModalState | null>(null);
+  const [custQuery, setCustQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     reload();
+    getAdminCustomers().then(setCustomers).catch(() => setCustomers([]));
   }, []);
 
   function reload() {
@@ -61,11 +85,13 @@ export default function AdminPromotionsPage() {
 
   function openAdd() {
     setError("");
-    setModal({ id: null, data: { ...EMPTY } });
+    setCustQuery("");
+    setModal({ id: null, data: { ...EMPTY }, targets: [] });
   }
 
   function openEdit(p: AdminPromotion) {
     setError("");
+    setCustQuery("");
     setModal({
       id: p.id,
       data: {
@@ -73,12 +99,32 @@ export default function AdminPromotionsPage() {
         name: p.name,
         description: p.description ?? "",
         discountPercent: String(p.discountPercent),
-        minTier: p.minTier ?? "",
+        targetType: p.targetType || "ALL",
+        minTier: p.minTier ?? "SILVER",
+        usageLimit: p.usageLimit != null ? String(p.usageLimit) : "",
         startDate: p.startDate,
         endDate: p.endDate,
         active: p.active,
       },
+      targets: [...p.targetCustomers],
     });
+  }
+
+  function setData(patch: Partial<typeof EMPTY>) {
+    if (!modal) return;
+    setModal({ ...modal, data: { ...modal.data, ...patch } });
+  }
+
+  function addTarget(c: AdminCustomer) {
+    if (!modal) return;
+    if (modal.targets.some((t) => t.id === c.id)) return;
+    setModal({ ...modal, targets: [...modal.targets, { id: c.id, fullName: c.fullName, phone: c.phone }] });
+    setCustQuery("");
+  }
+
+  function removeTarget(id: number) {
+    if (!modal) return;
+    setModal({ ...modal, targets: modal.targets.filter((t) => t.id !== id) });
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -87,16 +133,25 @@ export default function AdminPromotionsPage() {
     setSaving(true);
     setError("");
     try {
+      const d = modal.data;
       const payload = {
-        code: modal.data.code,
-        name: modal.data.name,
-        description: modal.data.description || undefined,
-        discountPercent: Number(modal.data.discountPercent),
-        minTier: modal.data.minTier || undefined,
-        startDate: modal.data.startDate,
-        endDate: modal.data.endDate,
-        active: modal.data.active,
+        code: d.code,
+        name: d.name,
+        description: d.description || undefined,
+        discountPercent: Number(d.discountPercent),
+        targetType: d.targetType,
+        minTier: d.targetType === "TIER" ? d.minTier || undefined : undefined,
+        targetCustomerIds: d.targetType === "USER" ? modal.targets.map((t) => t.id) : undefined,
+        usageLimit: d.usageLimit ? Number(d.usageLimit) : null,
+        startDate: d.startDate,
+        endDate: d.endDate,
+        active: d.active,
       };
+      if (d.targetType === "USER" && modal.targets.length === 0) {
+        setError("Vui lòng chọn ít nhất một khách hàng.");
+        setSaving(false);
+        return;
+      }
       if (modal.id == null) await createPromotion(payload);
       else await updatePromotion(modal.id, payload);
       setModal(null);
@@ -109,19 +164,33 @@ export default function AdminPromotionsPage() {
   }
 
   async function handleDelete(p: AdminPromotion) {
-    if (!confirm(`Xoá khuyến mãi "${p.name}"?`)) return;
+    if (!(await confirm({ message: `Xoá khuyến mãi "${p.name}"?`, danger: true, confirmText: "Xoá" }))) return;
     try {
       await deletePromotion(p.id);
       reload();
     } catch (err: any) {
-      alert(err?.response?.data?.message || "Xoá thất bại.");
+      toast(err?.response?.data?.message || "Xoá thất bại.");
     }
   }
+
+  const q = custQuery.trim().toLowerCase();
+  const matches =
+    modal && q
+      ? customers
+          .filter((c) => !modal.targets.some((t) => t.id === c.id))
+          .filter((c) => {
+            const hay = [c.fullName, c.phone, c.email ?? "", ...c.vehicles.map((v) => v.licensePlate)]
+              .join(" ")
+              .toLowerCase();
+            return hay.includes(q);
+          })
+          .slice(0, 6)
+      : [];
 
   return (
     <AdminShell active="promotions" title="Quản lý khuyến mãi">
       <div className="flex items-center justify-between mb-6">
-        <p className="text-slate-400">Tạo &amp; quản lý chương trình khuyến mãi theo hạng.</p>
+        <p className="text-slate-400">Tạo &amp; quản lý khuyến mãi theo hạng hoặc khách hàng cụ thể.</p>
         <button
           onClick={openAdd}
           className="inline-flex items-center gap-2 rounded-lg bg-cyan-500 text-white font-semibold px-4 py-2.5 hover:bg-cyan-400 transition"
@@ -143,8 +212,8 @@ export default function AdminPromotionsPage() {
                   <th className="px-5 py-3 font-medium">Mã</th>
                   <th className="px-3 py-3 font-medium">Tên</th>
                   <th className="px-3 py-3 font-medium">Giảm</th>
-                  <th className="px-3 py-3 font-medium">Áp dụng</th>
-                  <th className="px-3 py-3 font-medium">Thời gian</th>
+                  <th className="px-3 py-3 font-medium">Đối tượng</th>
+                  <th className="px-3 py-3 font-medium">Lượt</th>
                   <th className="px-3 py-3 font-medium">Trạng thái</th>
                   <th className="px-5 py-3 font-medium text-right">Thao tác</th>
                 </tr>
@@ -159,12 +228,15 @@ export default function AdminPromotionsPage() {
                     </td>
                     <td className="px-3 py-3.5">
                       <p className="text-white font-medium">{p.name}</p>
-                      {p.description && <p className="text-xs text-slate-500 truncate max-w-[220px]">{p.description}</p>}
+                      {p.description && (
+                        <p className="text-xs text-slate-500 truncate max-w-[200px]">{p.description}</p>
+                      )}
                     </td>
                     <td className="px-3 py-3.5 text-cyan-400 font-semibold">-{p.discountPercent}%</td>
-                    <td className="px-3 py-3.5 text-slate-400">{p.minTier ? TIER_LABEL[p.minTier] : "Mọi hạng"}</td>
-                    <td className="px-3 py-3.5 text-slate-400 whitespace-nowrap">
-                      {p.startDate} → {p.endDate}
+                    <td className="px-3 py-3.5 text-slate-400">{targetText(p)}</td>
+                    <td className="px-3 py-3.5 text-slate-400">
+                      {p.usageCount}
+                      {p.usageLimit != null ? `/${p.usageLimit}` : ""}
                     </td>
                     <td className="px-3 py-3.5">
                       {p.active ? (
@@ -233,7 +305,7 @@ export default function AdminPromotionsPage() {
                   <span className="block text-sm font-medium text-slate-300 mb-1.5">Mã</span>
                   <input
                     value={modal.data.code}
-                    onChange={(e) => setModal({ ...modal, data: { ...modal.data, code: e.target.value.toUpperCase() } })}
+                    onChange={(e) => setData({ code: e.target.value.toUpperCase() })}
                     required
                     placeholder="WELCOME10"
                     className={inputCls}
@@ -246,7 +318,7 @@ export default function AdminPromotionsPage() {
                     min="1"
                     max="100"
                     value={modal.data.discountPercent}
-                    onChange={(e) => setModal({ ...modal, data: { ...modal.data, discountPercent: e.target.value } })}
+                    onChange={(e) => setData({ discountPercent: e.target.value })}
                     required
                     placeholder="10"
                     className={inputCls}
@@ -258,7 +330,7 @@ export default function AdminPromotionsPage() {
                 <span className="block text-sm font-medium text-slate-300 mb-1.5">Tên khuyến mãi</span>
                 <input
                   value={modal.data.name}
-                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, name: e.target.value } })}
+                  onChange={(e) => setData({ name: e.target.value })}
                   required
                   placeholder="Chào mừng thành viên mới"
                   className={inputCls}
@@ -269,27 +341,114 @@ export default function AdminPromotionsPage() {
                 <span className="block text-sm font-medium text-slate-300 mb-1.5">Mô tả</span>
                 <textarea
                   value={modal.data.description}
-                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, description: e.target.value } })}
+                  onChange={(e) => setData({ description: e.target.value })}
                   rows={2}
                   placeholder="Giảm 10% cho lần rửa đầu tiên."
                   className={`${inputCls} resize-none`}
                 />
               </label>
 
-              <label className="block mb-4">
-                <span className="block text-sm font-medium text-slate-300 mb-1.5">Áp dụng cho hạng</span>
-                <select
-                  value={modal.data.minTier}
-                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, minTier: e.target.value } })}
-                  className={inputCls}
-                >
-                  {TIER_OPTIONS.map((t) => (
-                    <option key={t.value} value={t.value} className="bg-slate-800">
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="grid grid-cols-2 gap-4">
+                <label className="block mb-4">
+                  <span className="block text-sm font-medium text-slate-300 mb-1.5">Đối tượng áp dụng</span>
+                  <select
+                    value={modal.data.targetType}
+                    onChange={(e) => setData({ targetType: e.target.value })}
+                    className={inputCls}
+                  >
+                    {TARGET_OPTIONS.map((t) => (
+                      <option key={t.value} value={t.value} className="bg-slate-800">
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block mb-4">
+                  <span className="block text-sm font-medium text-slate-300 mb-1.5">Giới hạn lượt</span>
+                  <input
+                    type="number"
+                    min="1"
+                    value={modal.data.usageLimit}
+                    onChange={(e) => setData({ usageLimit: e.target.value })}
+                    placeholder="Trống = không giới hạn"
+                    className={inputCls}
+                  />
+                </label>
+              </div>
+
+              {modal.data.targetType === "TIER" && (
+                <label className="block mb-4">
+                  <span className="block text-sm font-medium text-slate-300 mb-1.5">Hạng áp dụng</span>
+                  <select
+                    value={modal.data.minTier}
+                    onChange={(e) => setData({ minTier: e.target.value })}
+                    className={inputCls}
+                  >
+                    {TIER_OPTIONS.map((t) => (
+                      <option key={t.value} value={t.value} className="bg-slate-800">
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              {modal.data.targetType === "USER" && (
+                <div className="mb-4">
+                  <span className="block text-sm font-medium text-slate-300 mb-1.5">Khách hàng áp dụng</span>
+                  {modal.targets.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {modal.targets.map((t) => (
+                        <span
+                          key={t.id}
+                          className="inline-flex items-center gap-1 text-xs bg-cyan-500/15 text-cyan-200 rounded-full pl-2.5 pr-1 py-1"
+                        >
+                          {t.fullName} · {t.phone}
+                          <button
+                            type="button"
+                            onClick={() => removeTarget(t.id)}
+                            className="hover:text-white"
+                          >
+                            <X size={13} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="relative">
+                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input
+                      value={custQuery}
+                      onChange={(e) => setCustQuery(e.target.value)}
+                      placeholder="Tìm theo tên / SĐT / biển số / email"
+                      className={`${inputCls} pl-9`}
+                    />
+                  </div>
+                  {matches.length > 0 && (
+                    <div className="mt-1 border border-white/10 rounded-lg bg-slate-800 divide-y divide-white/5 overflow-hidden">
+                      {matches.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => addTarget(c)}
+                          className="w-full text-left px-3 py-2 hover:bg-slate-700 transition"
+                        >
+                          <p className="text-sm text-white">
+                            {c.fullName} · <span className="text-slate-400">{c.phone}</span>
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {c.email || "—"}
+                            {c.vehicles.length > 0 ? ` · ${c.vehicles.map((v) => v.licensePlate).join(", ")}` : ""}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {q && matches.length === 0 && (
+                    <p className="text-xs text-slate-500 mt-1">Không tìm thấy khách phù hợp.</p>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <label className="block mb-4">
@@ -297,7 +456,7 @@ export default function AdminPromotionsPage() {
                   <input
                     type="date"
                     value={modal.data.startDate}
-                    onChange={(e) => setModal({ ...modal, data: { ...modal.data, startDate: e.target.value } })}
+                    onChange={(e) => setData({ startDate: e.target.value })}
                     required
                     className={`${inputCls} [color-scheme:dark]`}
                   />
@@ -307,7 +466,7 @@ export default function AdminPromotionsPage() {
                   <input
                     type="date"
                     value={modal.data.endDate}
-                    onChange={(e) => setModal({ ...modal, data: { ...modal.data, endDate: e.target.value } })}
+                    onChange={(e) => setData({ endDate: e.target.value })}
                     required
                     className={`${inputCls} [color-scheme:dark]`}
                   />
@@ -318,7 +477,7 @@ export default function AdminPromotionsPage() {
                 <input
                   type="checkbox"
                   checked={modal.data.active}
-                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, active: e.target.checked } })}
+                  onChange={(e) => setData({ active: e.target.checked })}
                   className="w-4 h-4 accent-cyan-500"
                 />
                 <span className="text-sm text-slate-300">Đang chạy (hiển thị cho khách hàng)</span>

@@ -28,17 +28,20 @@ public class BookingService {
     private final ServiceItemRepository serviceItemRepository;
     private final CustomerRepository customerRepository;
     private final LoyaltyService loyaltyService;
+    private final PromotionService promotionService;
 
     public BookingService(BookingRepository bookingRepository,
                           VehicleRepository vehicleRepository,
                           ServiceItemRepository serviceItemRepository,
                           CustomerRepository customerRepository,
-                          LoyaltyService loyaltyService) {
+                          LoyaltyService loyaltyService,
+                          PromotionService promotionService) {
         this.bookingRepository = bookingRepository;
         this.vehicleRepository = vehicleRepository;
         this.serviceItemRepository = serviceItemRepository;
         this.customerRepository = customerRepository;
         this.loyaltyService = loyaltyService;
+        this.promotionService = promotionService;
     }
 
     @Transactional
@@ -59,6 +62,8 @@ public class BookingService {
             throw new IllegalArgumentException("Chỉ được đặt trước tối đa " + MEMBER_WINDOW_DAYS + " ngày (hạng Member)");
         }
 
+        long base = service.getPrice();
+
         Booking booking = new Booking();
         booking.setCustomer(customer);
         booking.setVehicle(vehicle);
@@ -66,7 +71,17 @@ public class BookingService {
         booking.setScheduledTime(time);
         booking.setStatus(BookingStatus.PENDING);
         booking.setNote(req.getNote());
-        booking.setPrice(service.getPrice());
+
+        String code = req.getPromoCode();
+        if (code != null && !code.isBlank()) {
+            PromotionService.AppliedPromo applied = promotionService.applyForBooking(customer, code, base);
+            booking.setOriginalPrice(base);
+            booking.setPrice(applied.finalPrice());
+            booking.setPromotion(applied.promotion());
+        } else {
+            booking.setPrice(base);
+        }
+
         bookingRepository.save(booking);
         return toResponse(booking);
     }
@@ -121,7 +136,9 @@ public class BookingService {
                 b.getScheduledTime(),
                 b.getStatus().name(),
                 b.getPrice(),
-                b.getNote()
+                b.getNote(),
+                b.getOriginalPrice(),
+                b.getPromotion() != null ? b.getPromotion().getCode() : null
         );
     }
 }

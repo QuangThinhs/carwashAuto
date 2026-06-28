@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plus, X, CalendarClock, Clock, History } from "lucide-react";
+import { ArrowLeft, Plus, X, CalendarClock, Clock, History, Ticket } from "lucide-react";
 import { getUser, type AuthUser } from "@/lib/auth";
 import { getVehicles, type Vehicle } from "@/services/vehicle";
 import {
@@ -19,7 +19,10 @@ import {
   type ServiceItem,
   type Booking,
 } from "@/services/booking";
+import { applyPromo, type PromoApplyResult } from "@/services/promotion";
 import CustomerTopbar from "@/components/CustomerTopbar";
+import { useToast } from "@/components/Toast";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 const inputCls =
   "w-full rounded-lg border border-white/10 bg-slate-800 px-4 py-2.5 text-white outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30";
@@ -31,6 +34,8 @@ function toLocalInput(d: Date) {
 
 export default function BookingsPage() {
   const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -40,6 +45,9 @@ export default function BookingsPage() {
   const [form, setForm] = useState({ vehicleId: "", serviceId: "", scheduledTime: "", note: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [promoCode, setPromoCode] = useState("");
+  const [promo, setPromo] = useState<PromoApplyResult | null>(null);
+  const [promoChecking, setPromoChecking] = useState(false);
 
   useEffect(() => {
     const u = getUser();
@@ -68,6 +76,8 @@ export default function BookingsPage() {
       return;
     }
     setError("");
+    setPromoCode("");
+    setPromo(null);
     setForm({
       vehicleId: String(vehicles[0].id),
       serviceId: services[0] ? String(services[0].id) : "",
@@ -87,6 +97,7 @@ export default function BookingsPage() {
         serviceId: Number(form.serviceId),
         scheduledTime: form.scheduledTime,
         note: form.note,
+        promoCode: promo?.valid ? promoCode.trim() : undefined,
       });
       setOpen(false);
       reloadBookings();
@@ -97,23 +108,37 @@ export default function BookingsPage() {
     }
   }
 
+  async function handleApplyPromo() {
+    if (!promoCode.trim() || !form.serviceId) return;
+    setPromoChecking(true);
+    try {
+      const r = await applyPromo(promoCode.trim(), Number(form.serviceId));
+      setPromo(r);
+    } catch {
+      setPromo(null);
+      setError("Không kiểm tra được mã khuyến mãi.");
+    } finally {
+      setPromoChecking(false);
+    }
+  }
+
   async function handleComplete(b: Booking) {
-    if (!confirm(`Xác nhận đã rửa xong "${b.serviceName}"?`)) return;
+    if (!(await confirm({ message: `Xác nhận đã rửa xong "${b.serviceName}"?`, confirmText: "Đã xong" }))) return;
     try {
       await completeBooking(b.id);
       reloadBookings();
     } catch (err: any) {
-      alert(err?.response?.data?.message || "Thao tác thất bại.");
+      toast(err?.response?.data?.message || "Thao tác thất bại.");
     }
   }
 
   async function handleCancel(b: Booking) {
-    if (!confirm("Huỷ lịch đặt này?")) return;
+    if (!(await confirm({ message: "Huỷ lịch đặt này?", danger: true, confirmText: "Huỷ lịch" }))) return;
     try {
       await cancelBooking(b.id);
       reloadBookings();
     } catch (err: any) {
-      alert(err?.response?.data?.message || "Huỷ thất bại.");
+      toast(err?.response?.data?.message || "Huỷ thất bại.");
     }
   }
 
@@ -122,6 +147,8 @@ export default function BookingsPage() {
   const active = bookings.filter((b) => ACTIVE_STATUSES.includes(b.status));
   const now = new Date();
   const max = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const baseTotal = services.find((s) => String(s.id) === form.serviceId)?.price ?? 0;
+  const finalTotal = promo?.valid ? promo.finalPrice : baseTotal;
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -201,7 +228,13 @@ export default function BookingsPage() {
                     {b.note && <p className="text-sm text-slate-500 mt-1">Ghi chú: {b.note}</p>}
                   </div>
                   <div className="text-right shrink-0">
+                    {b.originalPrice != null && b.originalPrice > b.price && (
+                      <p className="text-xs text-slate-500 line-through">{fmtPrice(b.originalPrice)}</p>
+                    )}
                     <p className="font-bold text-cyan-400">{fmtPrice(b.price)}</p>
+                    {b.promoCode && (
+                      <p className="text-[11px] text-green-400">Mã {b.promoCode}</p>
+                    )}
                     <div className="flex items-center gap-3 justify-end mt-1">
                       <button
                         onClick={() => handleComplete(b)}
@@ -268,7 +301,10 @@ export default function BookingsPage() {
                 <span className="block text-sm font-medium text-slate-300 mb-1.5">Dịch vụ</span>
                 <select
                   value={form.serviceId}
-                  onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
+                  onChange={(e) => {
+                    setForm({ ...form, serviceId: e.target.value });
+                    setPromo(null);
+                  }}
                   required
                   className={inputCls}
                 >
@@ -279,6 +315,36 @@ export default function BookingsPage() {
                   ))}
                 </select>
               </label>
+
+              <div className="mb-4">
+                <span className="block text-sm font-medium text-slate-300 mb-1.5">Mã khuyến mãi (tuỳ chọn)</span>
+                <div className="flex gap-2">
+                  <input
+                    value={promoCode}
+                    onChange={(e) => {
+                      setPromoCode(e.target.value.toUpperCase());
+                      setPromo(null);
+                    }}
+                    placeholder="VD: WELCOME10"
+                    className={`${inputCls} font-mono`}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleApplyPromo}
+                    disabled={promoChecking || !promoCode.trim()}
+                    className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500 hover:text-white text-sm font-medium px-4 transition disabled:opacity-40"
+                  >
+                    <Ticket size={15} /> {promoChecking ? "..." : "Áp dụng"}
+                  </button>
+                </div>
+                {promo && (
+                  <p className={`mt-1.5 text-sm ${promo.valid ? "text-green-400" : "text-red-300"}`}>
+                    {promo.valid
+                      ? `✓ ${promo.name} — giảm ${fmtPrice(promo.discountAmount)} (${promo.discountPercent}%)`
+                      : promo.message}
+                  </p>
+                )}
+              </div>
 
               <label className="block mb-4">
                 <span className="block text-sm font-medium text-slate-300 mb-1.5">
@@ -304,6 +370,23 @@ export default function BookingsPage() {
                   className={`${inputCls} resize-none`}
                 />
               </label>
+
+              <div className="rounded-lg bg-slate-800/60 border border-white/10 px-4 py-3 mb-5 space-y-1">
+                <div className="flex justify-between text-sm text-slate-400">
+                  <span>Tạm tính</span>
+                  <span className={promo?.valid ? "line-through" : ""}>{fmtPrice(baseTotal)}</span>
+                </div>
+                {promo?.valid && (
+                  <div className="flex justify-between text-sm text-green-400">
+                    <span>Giảm ({promo.code})</span>
+                    <span>-{fmtPrice(promo.discountAmount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-semibold text-white pt-1 border-t border-white/5">
+                  <span>Thành tiền</span>
+                  <span className="text-cyan-300">{fmtPrice(finalTotal)}</span>
+                </div>
+              </div>
 
               <div className="flex gap-3">
                 <button

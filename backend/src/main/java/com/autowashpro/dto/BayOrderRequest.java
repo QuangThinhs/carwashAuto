@@ -17,6 +17,9 @@ public class BayOrderRequest {
     @NotNull(message = "Vui lòng chọn dịch vụ")
     private Long serviceId;
 
+    /** Ma khuyen mai (tuy chon). */
+    private String promoCode;
+
     public String getCustomerName() {
         return customerName;
     }
@@ -47,5 +50,13 @@ public class BayOrderRequest {
 
     public void setServiceId(Long serviceId) {
         this.serviceId = serviceId;
+    }
+
+    public String getPromoCode() {
+        return promoCode;
+    }
+
+    public void setPromoCode(String promoCode) {
+        this.promoCode = promoCode;
     }
 }

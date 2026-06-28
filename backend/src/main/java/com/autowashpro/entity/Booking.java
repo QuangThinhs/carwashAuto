@@ -53,6 +53,15 @@ public class Booking {
     @Column(name = "walkin_plate", length = 20)
     private String walkinPlate;
 
+    /** Khuyen mai da ap dung (null neu khong dung ma). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "promotion_id")
+    private Promotion promotion;
+
+    /** Gia goc truoc khi giam (null neu khong dung ma). */
+    @Column(name = "original_price")
+    private Long originalPrice;
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) {
@@ -146,5 +155,21 @@ public class Booking {
 
     public void setWalkinPlate(String walkinPlate) {
         this.walkinPlate = walkinPlate;
+    }
+
+    public Promotion getPromotion() {
+        return promotion;
+    }
+
+    public void setPromotion(Promotion promotion) {
+        this.promotion = promotion;
+    }
+
+    public Long getOriginalPrice() {
+        return originalPrice;
+    }
+
+    public void setOriginalPrice(Long originalPrice) {
+        this.originalPrice = originalPrice;
     }
 }

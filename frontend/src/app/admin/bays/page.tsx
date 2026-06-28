@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Car, CheckCircle, Play, X, Clock, Settings, Plus, Trash2, Check } from "lucide-react";
+import { Car, CheckCircle, Play, X, Clock, Settings, Plus, Trash2, Check, Ticket } from "lucide-react";
 import AdminShell from "@/components/AdminShell";
+import { useToast } from "@/components/Toast";
+import { useConfirm } from "@/components/ConfirmDialog";
 import {
   getBays,
   getAdminBookings,
@@ -12,17 +14,21 @@ import {
   createBay,
   renameBay,
   deleteBay,
+  applyAdminPromo,
   type WashBay,
   type AdminBooking,
 } from "@/services/adminOps";
 import { getServices, fmtPrice, fmtTime, type ServiceItem } from "@/services/booking";
+import { type PromoApplyResult } from "@/services/promotion";
 
 const inputCls =
   "w-full rounded-lg border border-white/10 bg-slate-800 px-4 py-2.5 text-white outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30";
 
-const EMPTY_ORDER = { customerName: "", customerPhone: "", vehiclePlate: "", serviceId: "" };
+const EMPTY_ORDER = { customerName: "", customerPhone: "", vehiclePlate: "", serviceId: "", promoCode: "" };
 
 export default function AdminBaysPage() {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [bays, setBays] = useState<WashBay[]>([]);
   const [waiting, setWaiting] = useState<AdminBooking[]>([]);
   const [services, setServices] = useState<ServiceItem[]>([]);
@@ -31,6 +37,8 @@ export default function AdminBaysPage() {
   const [start, setStart] = useState<WashBay | null>(null);
   const [tab, setTab] = useState<"order" | "online">("order");
   const [order, setOrder] = useState(EMPTY_ORDER);
+  const [promo, setPromo] = useState<PromoApplyResult | null>(null);
+  const [promoChecking, setPromoChecking] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
@@ -57,8 +65,23 @@ export default function AdminBaysPage() {
   function openStart(bay: WashBay) {
     setErr("");
     setTab("order");
+    setPromo(null);
     setOrder({ ...EMPTY_ORDER, serviceId: services[0] ? String(services[0].id) : "" });
     setStart(bay);
+  }
+
+  async function handleApplyPromo() {
+    if (!order.promoCode.trim() || !order.serviceId) return;
+    setPromoChecking(true);
+    try {
+      const r = await applyAdminPromo(order.promoCode.trim(), Number(order.serviceId));
+      setPromo(r);
+    } catch {
+      setPromo(null);
+      toast("Không kiểm tra được mã khuyến mãi.");
+    } finally {
+      setPromoChecking(false);
+    }
   }
 
   async function handleOrder(e: React.FormEvent) {
@@ -72,6 +95,7 @@ export default function AdminBaysPage() {
         customerPhone: order.customerPhone || undefined,
         vehiclePlate: order.vehiclePlate,
         serviceId: Number(order.serviceId),
+        promoCode: promo?.valid ? order.promoCode.trim() : undefined,
       });
       setStart(null);
       reload();
@@ -89,32 +113,33 @@ export default function AdminBaysPage() {
       setStart(null);
       reload();
     } catch (e: any) {
-      alert(e?.response?.data?.message || "Xếp xe thất bại.");
+      toast(e?.response?.data?.message || "Xếp xe thất bại.");
     }
   }
 
   async function assignToFirstFree(booking: AdminBooking) {
     const free = bays.find((b) => b.status === "FREE");
     if (!free) {
-      alert("Không còn bãi trống. Vui lòng chờ một bãi hoàn tất.");
+      toast("Không còn bãi trống. Vui lòng chờ một bãi hoàn tất.");
       return;
     }
     try {
       await assignBay(free.id, booking.id);
       reload();
     } catch (e: any) {
-      alert(e?.response?.data?.message || "Bãi vừa bị chiếm, vui lòng thử lại.");
+      toast(e?.response?.data?.message || "Bãi vừa bị chiếm, vui lòng thử lại.");
       reload();
     }
   }
 
   async function doComplete(bay: WashBay) {
-    if (!confirm(`Hoàn tất rửa xe tại ${bay.name}?`)) return;
+    if (!(await confirm({ message: `Hoàn tất rửa xe tại ${bay.name}?`, confirmText: "Hoàn tất" }))) return;
     try {
       await completeBay(bay.id);
+      toast("Đã hoàn tất.", "success");
       reload();
     } catch (e: any) {
-      alert(e?.response?.data?.message || "Thao tác thất bại.");
+      toast(e?.response?.data?.message || "Thao tác thất bại.");
     }
   }
 
@@ -126,7 +151,7 @@ export default function AdminBaysPage() {
       setNewBayName("");
       reload();
     } catch (e: any) {
-      alert(e?.response?.data?.message || "Thêm bãi thất bại.");
+      toast(e?.response?.data?.message || "Thêm bãi thất bại.");
     }
   }
 
@@ -142,22 +167,23 @@ export default function AdminBaysPage() {
       });
       reload();
     } catch (e: any) {
-      alert(e?.response?.data?.message || "Đổi tên thất bại.");
+      toast(e?.response?.data?.message || "Đổi tên thất bại.");
     }
   }
 
   async function handleDeleteBay(bay: WashBay) {
-    if (!confirm(`Xoá ${bay.name}?`)) return;
+    if (!(await confirm({ message: `Xoá ${bay.name}?`, danger: true, confirmText: "Xoá" }))) return;
     try {
       await deleteBay(bay.id);
       reload();
     } catch (e: any) {
-      alert(e?.response?.data?.message || "Xoá thất bại.");
+      toast(e?.response?.data?.message || "Xoá thất bại.");
     }
   }
 
   const occupied = bays.filter((b) => b.status === "OCCUPIED").length;
-  const total = services.find((s) => String(s.id) === order.serviceId)?.price ?? 0;
+  const baseTotal = services.find((s) => String(s.id) === order.serviceId)?.price ?? 0;
+  const finalTotal = promo?.valid ? promo.finalPrice : baseTotal;
 
   return (
     <AdminShell active="bays" title="Quản lý bãi rửa">
@@ -274,7 +300,7 @@ export default function AdminBaysPage() {
           onClick={() => setStart(null)}
         >
           <div
-            className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-md p-6"
+            className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-md p-6 max-h-[92vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
@@ -348,7 +374,10 @@ export default function AdminBaysPage() {
                   <span className="block text-sm font-medium text-slate-300 mb-1.5">Dịch vụ</span>
                   <select
                     value={order.serviceId}
-                    onChange={(e) => setOrder({ ...order, serviceId: e.target.value })}
+                    onChange={(e) => {
+                      setOrder({ ...order, serviceId: e.target.value });
+                      setPromo(null);
+                    }}
                     required
                     className={inputCls}
                   >
@@ -360,10 +389,53 @@ export default function AdminBaysPage() {
                   </select>
                 </label>
 
+                {/* Ma khuyen mai */}
+                <div className="mb-4">
+                  <span className="block text-sm font-medium text-slate-300 mb-1.5">Mã khuyến mãi (tuỳ chọn)</span>
+                  <div className="flex gap-2">
+                    <input
+                      value={order.promoCode}
+                      onChange={(e) => {
+                        setOrder({ ...order, promoCode: e.target.value.toUpperCase() });
+                        setPromo(null);
+                      }}
+                      placeholder="VD: WELCOME10"
+                      className={`${inputCls} font-mono`}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyPromo}
+                      disabled={promoChecking || !order.promoCode.trim()}
+                      className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500 hover:text-white text-sm font-medium px-4 transition disabled:opacity-40"
+                    >
+                      <Ticket size={15} /> {promoChecking ? "..." : "Áp dụng"}
+                    </button>
+                  </div>
+                  {promo && (
+                    <p className={`mt-1.5 text-sm ${promo.valid ? "text-green-400" : "text-red-300"}`}>
+                      {promo.valid
+                        ? `✓ ${promo.name} — giảm ${fmtPrice(promo.discountAmount)} (${promo.discountPercent}%)`
+                        : promo.message}
+                    </p>
+                  )}
+                </div>
+
                 {/* Tong tien */}
-                <div className="flex items-center justify-between rounded-lg bg-cyan-500/10 border border-cyan-500/20 px-4 py-3 mb-5">
-                  <span className="text-sm text-slate-300">Tổng tiền</span>
-                  <span className="text-xl font-bold text-cyan-300">{fmtPrice(total)}</span>
+                <div className="rounded-lg bg-slate-800/60 border border-white/10 px-4 py-3 mb-5 space-y-1">
+                  <div className="flex justify-between text-sm text-slate-400">
+                    <span>Tạm tính</span>
+                    <span className={promo?.valid ? "line-through" : ""}>{fmtPrice(baseTotal)}</span>
+                  </div>
+                  {promo?.valid && (
+                    <div className="flex justify-between text-sm text-green-400">
+                      <span>Giảm ({promo.code})</span>
+                      <span>-{fmtPrice(promo.discountAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-semibold text-white pt-1 border-t border-white/5">
+                    <span>Tổng tiền</span>
+                    <span className="text-cyan-300">{fmtPrice(finalTotal)}</span>
+                  </div>
                 </div>
 
                 <button

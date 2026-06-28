@@ -1,5 +1,6 @@
 import { api } from "./api";
 import type { AdminBooking } from "./admin";
+import type { PromoApplyResult } from "./promotion";
 
 export type { AdminBooking };
 
@@ -26,6 +27,7 @@ export interface AdminCustomer {
   id: number;
   fullName: string;
   phone: string;
+  email: string | null;
   vehicles: AdminVehicle[];
 }
 
@@ -40,9 +42,15 @@ export async function assignBay(bayId: number, bookingId: number): Promise<void>
 
 export async function createBayOrder(
   bayId: number,
-  data: { customerName: string; customerPhone?: string; vehiclePlate: string; serviceId: number },
+  data: { customerName: string; customerPhone?: string; vehiclePlate: string; serviceId: number; promoCode?: string },
 ): Promise<void> {
   await api.post(`/api/admin/bays/${bayId}/order`, data);
+}
+
+/** Xem trước giảm giá cho order khách vãng lai (chỉ mã đối tượng "Tất cả"). */
+export async function applyAdminPromo(code: string, serviceId: number): Promise<PromoApplyResult> {
+  const res = await api.post<PromoApplyResult>("/api/admin/promotions/apply", { code, serviceId });
+  return res.data;
 }
 
 export async function completeBay(bayId: number): Promise<void> {

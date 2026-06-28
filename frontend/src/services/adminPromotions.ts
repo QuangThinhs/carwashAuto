@@ -1,12 +1,22 @@
 import { api } from "./api";
 
+export interface PromoTargetCustomer {
+  id: number;
+  fullName: string;
+  phone: string;
+}
+
 export interface AdminPromotion {
   id: number;
   code: string;
   name: string;
   description: string | null;
   discountPercent: number;
+  targetType: string; // ALL | TIER | USER
   minTier: string | null;
+  usageLimit: number | null;
+  usageCount: number;
+  targetCustomers: PromoTargetCustomer[];
   startDate: string;
   endDate: string;
   active: boolean;
@@ -17,7 +27,10 @@ export interface PromotionPayload {
   name: string;
   description?: string;
   discountPercent: number;
+  targetType: string;
   minTier?: string;
+  targetCustomerIds?: number[];
+  usageLimit?: number | null;
   startDate: string;
   endDate: string;
   active: boolean;

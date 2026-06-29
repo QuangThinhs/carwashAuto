@@ -34,7 +34,30 @@ export interface AdminCustomer {
   fullName: string;
   phone: string;
   email: string | null;
+  dateOfBirth: string | null;
+  gender: string | null;
+  address: string | null;
+  createdAt: string;
+  enabled: boolean;
+  tier: string | null;
+  pointsBalance: number;
+  lifetimeSpend: number;
+  visitCount: number;
+  totalBookings: number;
+  completedBookings: number;
+  revenue: number;
   vehicles: AdminVehicle[];
+  recentBookings: AdminBooking[];
+}
+
+export interface AdminCustomerPayload {
+  fullName: string;
+  phone: string;
+  email?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  address?: string;
+  enabled: boolean;
 }
 
 export async function getBays(): Promise<WashBay[]> {
@@ -110,6 +133,11 @@ export async function deleteBay(id: number): Promise<void> {
 
 export async function getAdminCustomers(): Promise<AdminCustomer[]> {
   const res = await api.get<AdminCustomer[]>("/api/admin/customers");
+  return res.data;
+}
+
+export async function updateAdminCustomer(id: number, data: AdminCustomerPayload): Promise<AdminCustomer> {
+  const res = await api.put<AdminCustomer>(`/api/admin/customers/${id}`, data);
   return res.data;
 }
 

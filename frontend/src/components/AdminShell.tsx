@@ -15,7 +15,7 @@ const navItems = [
   { key: "history", label: "Lịch sử đơn hàng", Icon: History, href: "/admin/history", ready: true },
   { key: "services", label: "Dịch vụ", Icon: Droplets, href: "/admin/services", ready: true },
   { key: "promotions", label: "Khuyến mãi", Icon: Ticket, href: "/admin/promotions", ready: true },
-  { key: "customers", label: "Khách hàng", Icon: Users, href: "/admin/customers", ready: false },
+  { key: "customers", label: "Khách hàng", Icon: Users, href: "/admin/customers", ready: true },
 ];
 
 export default function AdminShell({

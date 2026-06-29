@@ -1,6 +1,7 @@
 package com.autowashpro.service;
 
 import com.autowashpro.dto.AdminBookingResponse;
+import com.autowashpro.dto.AdminCustomerRequest;
 import com.autowashpro.dto.AdminCustomerResponse;
 import com.autowashpro.dto.ServiceLineResponse;
 import com.autowashpro.dto.VehicleResponse;
@@ -8,10 +9,13 @@ import com.autowashpro.dto.WashBayResponse;
 import com.autowashpro.entity.BayStatus;
 import com.autowashpro.entity.Booking;
 import com.autowashpro.entity.BookingStatus;
+import com.autowashpro.entity.Customer;
+import com.autowashpro.entity.LoyaltyAccount;
 import com.autowashpro.entity.ServiceItem;
 import com.autowashpro.entity.WashBay;
 import com.autowashpro.repository.BookingRepository;
 import com.autowashpro.repository.CustomerRepository;
+import com.autowashpro.repository.LoyaltyAccountRepository;
 import com.autowashpro.repository.ServiceItemRepository;
 import com.autowashpro.repository.VehicleRepository;
 import com.autowashpro.repository.WashBayRepository;
@@ -32,18 +36,20 @@ public class OperationsService {
     private final BookingRepository bookingRepo;
     private final CustomerRepository customerRepo;
     private final VehicleRepository vehicleRepo;
+    private final LoyaltyAccountRepository loyaltyRepo;
     private final ServiceItemRepository serviceRepo;
     private final LoyaltyService loyaltyService;
     private final PromotionService promotionService;
 
     public OperationsService(WashBayRepository bayRepo, BookingRepository bookingRepo,
                              CustomerRepository customerRepo, VehicleRepository vehicleRepo,
-                             ServiceItemRepository serviceRepo, LoyaltyService loyaltyService,
-                             PromotionService promotionService) {
+                             LoyaltyAccountRepository loyaltyRepo, ServiceItemRepository serviceRepo,
+                             LoyaltyService loyaltyService, PromotionService promotionService) {
         this.bayRepo = bayRepo;
         this.bookingRepo = bookingRepo;
         this.customerRepo = customerRepo;
         this.vehicleRepo = vehicleRepo;
+        this.loyaltyRepo = loyaltyRepo;
         this.serviceRepo = serviceRepo;
         this.loyaltyService = loyaltyService;
         this.promotionService = promotionService;
@@ -72,12 +78,26 @@ public class OperationsService {
 
     @Transactional(readOnly = true)
     public List<AdminCustomerResponse> listCustomers() {
-        return customerRepo.findAll(Sort.by("fullName")).stream().map(c -> {
-            List<VehicleResponse> vs = vehicleRepo.findByCustomerIdOrderByIdDesc(c.getId()).stream()
-                    .map(v -> new VehicleResponse(v.getId(), v.getLicensePlate(), v.getCategory(), v.getType(), v.getBrand()))
-                    .toList();
-            return new AdminCustomerResponse(c.getId(), c.getFullName(), c.getPhone(), c.getEmail(), vs);
-        }).toList();
+        return customerRepo.findAll(Sort.by("fullName")).stream().map(this::toCustomerResponse).toList();
+    }
+
+    @Transactional
+    public AdminCustomerResponse updateCustomer(Long id, AdminCustomerRequest req) {
+        Customer customer = customer(id);
+        String phone = req.getPhone().trim();
+        if (customerRepo.existsByPhoneAndIdNot(phone, id)) {
+            throw new IllegalArgumentException("So dien thoai da ton tai");
+        }
+        customer.setFullName(req.getFullName().trim());
+        customer.setPhone(phone);
+        customer.setEmail(blankToNull(req.getEmail()));
+        customer.setDateOfBirth(req.getDateOfBirth());
+        customer.setGender(blankToNull(req.getGender()));
+        customer.setAddress(blankToNull(req.getAddress()));
+        customer.getUser().setUsername(phone);
+        customer.getUser().setEnabled(req.isEnabled());
+        customerRepo.save(customer);
+        return toCustomerResponse(customer);
     }
 
     // ----- Quan ly bai rua (them / doi ten / xoa) -----
@@ -210,6 +230,50 @@ public class OperationsService {
 
     private Booking booking(Long id) {
         return bookingRepo.findById(id).orElseThrow(() -> new IllegalArgumentException("Không tìm thấy lịch đặt"));
+    }
+
+    private Customer customer(Long id) {
+        return customerRepo.findById(id).orElseThrow(() -> new IllegalArgumentException("Khong tim thay khach hang"));
+    }
+
+    private AdminCustomerResponse toCustomerResponse(Customer c) {
+        List<VehicleResponse> vs = vehicleRepo.findByCustomerIdOrderByIdDesc(c.getId()).stream()
+                .map(v -> new VehicleResponse(v.getId(), v.getLicensePlate(), v.getCategory(), v.getType(), v.getBrand()))
+                .toList();
+        List<AdminBookingResponse> recent = bookingRepo.findTop5ByCustomerIdOrderByScheduledTimeDesc(c.getId()).stream()
+                .map(AdminBookingResponse::from)
+                .toList();
+        LoyaltyAccount loyalty = loyaltyRepo.findByCustomerId(c.getId()).orElse(null);
+        long totalBookings = bookingRepo.countByCustomerId(c.getId());
+        long completedBookings = bookingRepo.countByCustomerIdAndStatus(c.getId(), BookingStatus.DONE);
+        long revenue = bookingRepo.sumPriceByCustomerIdAndStatus(c.getId(), BookingStatus.DONE);
+        return new AdminCustomerResponse(
+                c.getId(),
+                c.getFullName(),
+                c.getPhone(),
+                c.getEmail(),
+                c.getDateOfBirth(),
+                c.getGender(),
+                c.getAddress(),
+                c.getCreatedAt(),
+                c.getUser().isEnabled(),
+                loyalty != null ? loyalty.getTier().name() : null,
+                loyalty != null ? loyalty.getPointsBalance() : 0,
+                loyalty != null ? loyalty.getLifetimeSpend() : 0,
+                loyalty != null ? loyalty.getVisitCount() : 0,
+                totalBookings,
+                completedBookings,
+                revenue,
+                vs,
+                recent
+        );
+    }
+
+    private String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 
     private WashBayResponse toBay(WashBay bay) {
